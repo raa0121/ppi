@@ -53,13 +53,13 @@ faview-mode/1
 	defer file.Close()
 	img, _, err := psd.Decode(file, &psd.DecodeOptions{})
 	imgs := ppi.CreateImage(img, config)
-	for i, v := range imgs {
-		out, err := os.Create(fmt.Sprintf("%s.png", strings.Replace(i, "/", "_", -1)))
+	for _, v := range imgs {
+		out, err := os.Create(fmt.Sprintf("%s.png", strings.Replace(v.Name, "/", "_", -1)))
 		if err != nil {
 			panic(err)
 		}
 		defer out.Close()
-		err := png.Encode(out, v)
+		err := png.Encode(out, v.Image)
 		if err != nil {
 			panic(err)
 		}

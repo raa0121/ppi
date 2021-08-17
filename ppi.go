@@ -11,9 +11,14 @@ import (
 	"golang.org/x/text/transform"
 )
 
-func CreateImage(img *psd.PSD, conf *pfv.Pfv) map[string]draw.Image {
+type Image struct {
+	Name string
+	Image draw.Image
+}
+
+func CreateImage(img *psd.PSD, conf *pfv.Pfv) []Image {
 	output := map[string][]psd.Layer{}
-	imgs := map[string]draw.Image{}
+	imgs := []Image{}
 	canvas := &image.RGBA{}
 
 	for _, v := range conf.Items {
@@ -50,7 +55,11 @@ func CreateImage(img *psd.PSD, conf *pfv.Pfv) map[string]draw.Image {
 				draw.Draw(canvas, oo.Rect, oo.Picker, oo.Rect.Min, draw.Over)
 			}
 		}
-		imgs[i] = canvas
+		im := Image{
+			Name: i,
+			Image: canvas,
+		}
+		imgs = append(imgs, im)
 	}
 	return imgs
 }
