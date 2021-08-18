@@ -2,6 +2,7 @@ package ppi
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/draw"
 
@@ -16,16 +17,16 @@ type Image struct {
 	Image draw.Image
 }
 
-func generateLayersName(layer psd.Layer, dirName string) map[string]psd.Layer {
+func generateLayersName(layer psd.Layer, dirName string, enc string) map[string]psd.Layer {
 	names := map[string]psd.Layer{}
-	layerName := detectLayerNameEncoding([]byte(layer.Name))
+	layerName := layer.Name
 	if layer.Folder() {
 		for _, l := range layer.Layer {
 			tmpMap := map[string]psd.Layer{}
 			if dirName == "" {
-				tmpMap = generateLayersName(l, layerName)
+				tmpMap = generateLayersName(l, layerName, enc)
 			} else {
-				tmpMap = generateLayersName(l, dirName + "/" + layerName)
+				tmpMap = generateLayersName(l, dirName + "/" + layerName, enc)
 			}
 			names = merge(names, tmpMap)
 		}
@@ -50,19 +51,23 @@ func merge(m ...map[string]psd.Layer) map[string]psd.Layer {
 	return ans
 }
 
-func CreateImage(img *psd.PSD, conf *pfv.Pfv) []Image {
+func CreateImage(img *psd.PSD, conf *pfv.Pfv, layerNameEncoding string) ([]Image, error) {
 	output := map[string][]psd.Layer{}
 	imgs := []Image{}
 	canvas := &image.RGBA{}
 	layerNames := map[string]psd.Layer{}
 
 	for _, l := range img.Layer {
-		layerNames = merge(layerNames, generateLayersName(l, ""))
+		layerNames = merge(layerNames, generateLayersName(l, "", layerNameEncoding))
 	}
 	for _, v := range conf.Items {
 		for _, vv := range v.Elements {
 			for layerName, l := range layerNames {
-				if vv.Path == layerName {
+				name, err := convertLayerNameEncoding(layerName, layerNameEncoding)
+				if err != nil {
+					return nil ,err
+				}
+				if vv.Path == name {
 					output[v.Name] = append(output[v.Name], l)
 				}
 			}
@@ -86,31 +91,30 @@ func CreateImage(img *psd.PSD, conf *pfv.Pfv) []Image {
 		}
 		imgs = append(imgs, im)
 	}
-	return imgs
+	return imgs, nil
 }
 
-func detectLayerNameEncoding(body []byte) string {
-	encodings := []string{"sjis", "euc-jp", "utf-8"}
+func convertLayerNameEncoding(body string, enc string) (string, error) {
 	var f []byte
-	for _, enc := range encodings {
-		ee, _ := charset.Lookup(enc)
-		if ee == nil {
-			continue
-		}
-		var buf bytes.Buffer
-		ic := transform.NewWriter(&buf, ee.NewDecoder())
-		_, err := ic.Write(body)
-		if err != nil {
-			continue
-		}
-		err = ic.Close()
-		if err != nil {
-			continue
-		}
-		f = buf.Bytes()
-		break
+	if enc == "utf-8" {
+		return body, nil
 	}
-	return string(f)
+	ee, _ := charset.Lookup(enc)
+	if ee == nil {
+		return "", fmt.Errorf("")
+	}
+	var buf bytes.Buffer
+	ic := transform.NewWriter(&buf, ee.NewDecoder())
+	_, err := ic.Write([]byte(body))
+	if err != nil {
+		return "", err
+	}
+	err = ic.Close()
+	if err != nil {
+		return "", err
+	}
+	f = buf.Bytes()
+	return string(f), nil
 }
 
 func reverse(p []psd.Layer) []psd.Layer {
