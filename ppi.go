@@ -16,29 +16,54 @@ type Image struct {
 	Image draw.Image
 }
 
+func generateLayersName(layer psd.Layer, dirName string) map[string]psd.Layer {
+	names := map[string]psd.Layer{}
+	layerName := detectLayerNameEncoding([]byte(layer.Name))
+	if layer.Folder() {
+		for _, l := range layer.Layer {
+			tmpMap := map[string]psd.Layer{}
+			if dirName == "" {
+				tmpMap = generateLayersName(l, layerName)
+			} else {
+				tmpMap = generateLayersName(l, dirName + "/" + layerName)
+			}
+			names = merge(names, tmpMap)
+		}
+	} else {
+		if dirName == "" {
+			names[layerName] = layer
+		} else {
+			names[dirName + "/" + layerName] = layer
+		}
+	}
+	return names
+}
+
+func merge(m ...map[string]psd.Layer) map[string]psd.Layer {
+	ans := make(map[string]psd.Layer, 0)
+
+	for _, c := range m {
+		for k, v := range c {
+			ans[k] = v
+		}
+	}
+	return ans
+}
+
 func CreateImage(img *psd.PSD, conf *pfv.Pfv) []Image {
 	output := map[string][]psd.Layer{}
 	imgs := []Image{}
 	canvas := &image.RGBA{}
+	layerNames := map[string]psd.Layer{}
 
+	for _, l := range img.Layer {
+		layerNames = merge(layerNames, generateLayersName(l, ""))
+	}
 	for _, v := range conf.Items {
 		for _, vv := range v.Elements {
-			for _, l := range img.Layer {
-				if l.Folder() {
-					folder := detectLayerNameEncoding([]byte(l.Name))
-					for _, ll := range l.Layer {
-						name := detectLayerNameEncoding([]byte(ll.Name))
-						path := string(folder) + "/" + string(name) 
-						if vv.Path == path {
-							output[v.Name] = append(output[v.Name], ll)
-						}
-					}
-				} else {
-					name := detectLayerNameEncoding([]byte(l.Name))
-					path := string(name) 
-					if vv.Path == path {
-						output[v.Name] = append(output[v.Name], l)
-					}
+			for layerName, l := range layerNames {
+				if vv.Path == layerName {
+					output[v.Name] = append(output[v.Name], l)
 				}
 			}
 		}
